@@ -24,6 +24,19 @@ Le fichier ELF initial affiche le message : *"c'est un elf sain"*. Après modifi
 ## **Instructions d'utilisation**  
 
 ### **1. Compilation**  
-Assemble le code source avec **nasm** :  
+Assemble le code source avec **nasm** et creer un executable  :  
 ```bash
 nasm -f elf64 infector.asm -o infector
+ld infector.o -o infector
+
+### **2. Création de l'ELF sain**  
+Compile un fichier ELF simple en C pour afficher **"c'est un elf sain"** :  
+
+```bash
+gcc -o cible cible.c
+
+## **3. Exécution de l'infector**  
+Lance l'infector pour modifier le fichier ELF :  
+
+```bash
+./infector
