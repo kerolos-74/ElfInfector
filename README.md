@@ -4,7 +4,7 @@
 Ce projet a pour objectif d'analyser et d'implémenter un programme en **assembleur** capable de modifier le comportement d’un fichier ELF.  
 L’infection consiste à transformer un segment **PT_NOTE** en **PT_LOAD**, injecter un **shellcode** dans ce segment, et rediriger l’adresse d’entrée (**e_entry**) vers le code injecté.
 
-Le fichier ELF initial affiche le message : *"c'est un elf sain"*. Après modification, le shellcode affiche un message d’infection avant de tenter d'exécuter le code original.
+Le fichier ELF (cible)initial affiche le message : *"c'est un elf sain"*. Après modification, le shellcode affiche un message d’infection avant de tenter d'exécuter le code original.
 
 ---
 
